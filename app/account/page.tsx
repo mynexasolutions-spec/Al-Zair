@@ -89,36 +89,6 @@ function AccountContent() {
     }
   };
 
-  const handleCreateTestOrder = async () => {
-    try {
-      const res = await fetch('/api/account/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName: formData.fullName || user?.fullName || 'Customer',
-          customerPhone: formData.phone || user?.phone || '',
-          shippingAddress: formData.address || 'Flat 402, Royal Palms, Al Zair Estate',
-          city: formData.city || 'Mumbai',
-          postalCode: formData.postalCode || '400001',
-          state: formData.state || 'Maharashtra',
-          totalAmount: 1450,
-          paymentStatus: 'paid',
-          orderStatus: 'processing',
-          paymentMethod: 'online',
-          items: [
-            { name: 'Ajwa Royal Dates (500g)', price: 850, quantity: 1 },
-            { name: 'Handcrafted Dates Laddu (400g)', price: 600, quantity: 1 },
-          ],
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        showToast('New test order created in database!');
-        loadOrders();
-      }
-    } catch {}
-  };
-
   const handleCancelOrder = async (orderId: string) => {
     if (!confirm('Are you sure you want to cancel this order?')) return;
     try {
@@ -378,22 +348,11 @@ function AccountContent() {
               {/* Orders History Tab */}
               {activeTab === 'orders' && (
                 <div>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#dccbb4] pb-4 mb-6">
-                    <div>
-                      <h2 className="text-lg font-bold text-[#1a1714]">Order History</h2>
-                      <p className="text-xs text-[#5e5850] mt-0.5">
-                        Track your recent deliveries, view receipts, and order dates from the database.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleCreateTestOrder}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#c49a4a] bg-white/70 px-3.5 py-1.5 text-xs font-bold text-[#8a6828] hover:bg-[#c49a4a] hover:text-[#12100d] transition shadow-sm self-start sm:self-auto"
-                    >
-                      <ShoppingBag size={13} />
-                      <span>+ Create Test Order</span>
-                    </button>
+                  <div className="border-b border-[#dccbb4] pb-4 mb-6">
+                    <h2 className="text-lg font-bold text-[#1a1714]">Order History</h2>
+                    <p className="text-xs text-[#5e5850] mt-0.5">
+                      Track your recent deliveries, view receipts, and order dates from the database.
+                    </p>
                   </div>
 
                   {ordersLoading ? (
@@ -408,20 +367,13 @@ function AccountContent() {
                       <p className="text-xs text-[#786e60] mt-1 max-w-sm mx-auto">
                         Your completed purchases and deliveries will appear here automatically.
                       </p>
-                      <div className="mt-4 flex items-center justify-center gap-3">
+                      <div className="mt-4 flex items-center justify-center">
                         <Link
                           href="/products"
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-[#b89047] px-4 py-2 text-xs font-bold text-[#171513] shadow-sm hover:bg-[#a67e35]"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-[#b89047] px-5 py-2.5 text-xs font-bold text-[#171513] shadow-sm hover:bg-[#a67e35] transition"
                         >
-                          Shop Now
+                          Shop Luxury Dates
                         </Link>
-                        <button
-                          type="button"
-                          onClick={handleCreateTestOrder}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-[#171513] px-4 py-2 text-xs font-bold text-[#171513] hover:bg-[#171513] hover:text-white"
-                        >
-                          Simulate Order in DB
-                        </button>
                       </div>
                     </div>
                   ) : (

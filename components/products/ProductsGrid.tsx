@@ -3,9 +3,10 @@
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, ShoppingBag, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { allProducts, Product } from '@/data/catalog';
+import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 
 const defaultCategories = ['Dates', 'Dates Laddu', 'Stuffed Dates', 'Date Bites', 'Gift Packs'];
@@ -22,10 +23,12 @@ const sortOptions = [
 const ITEMS_PER_PAGE = 8;
 
 function ProductsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category');
   const gridTopRef = useRef<HTMLDivElement>(null);
 
+  const { user } = useAuth();
   const { addToCart } = useCart();
 
   // Dynamic Data State
@@ -490,15 +493,19 @@ function ProductsContent() {
                             {/* Black Circular Add to Cart Button */}
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                if (!user) {
+                                  router.push(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+                                  return;
+                                }
                                 addToCart({
                                   id: product.id,
                                   name: product.name,
                                   price: product.price,
                                   image: product.image || '/images/dates.jpg',
                                   weight: product.weight || '500g',
-                                })
-                              }
+                                });
+                              }}
                               aria-label={`Add ${product.name} to cart`}
                               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#171513] text-white shadow-md transition duration-300 hover:bg-[#b89047] hover:text-[#171513] active:scale-90"
                             >

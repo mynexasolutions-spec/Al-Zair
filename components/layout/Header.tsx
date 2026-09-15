@@ -221,12 +221,12 @@ export function Header() {
 
             {/* Shopping Cart Button */}
             <Link
-              href="/cart"
+              href={user ? "/cart" : "/login?redirect=/cart"}
               aria-label="Shopping Cart"
               className="relative text-white/90 transition-colors hover:text-[#d6b15e]"
             >
               <ShoppingBag size={17} />
-              {totalItems > 0 && (
+              {user && totalItems > 0 && (
                 <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#b89047] text-[9px] font-bold text-[#171513] shadow-sm animate-in zoom-in-75">
                   {totalItems}
                 </span>

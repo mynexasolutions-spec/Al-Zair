@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+import { useAuth } from './AuthContext';
+
 export type CartItem = {
   id: string;
   name: string;
@@ -33,15 +35,31 @@ type CartContextType = {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load from localStorage on mount
+  // Sync cart with user state
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      setCart([]);
+      try {
+        localStorage.removeItem('alzair_dates_cart');
+        localStorage.removeItem('syab_dates_cart');
+      } catch {}
+      setIsInitialized(true);
+      return;
+    }
+
     try {
+      const userCartKey = `alzair_dates_cart_${user.id || user.email}`;
       const savedCart =
-        localStorage.getItem('alzair_dates_cart') || localStorage.getItem('syab_dates_cart');
+        localStorage.getItem(userCartKey) ||
+        localStorage.getItem('alzair_dates_cart') ||
+        localStorage.getItem('syab_dates_cart');
       if (savedCart) {
         setCart(JSON.parse(savedCart));
       }
@@ -49,18 +67,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to load cart from localStorage', e);
     }
     setIsInitialized(true);
-  }, []);
+  }, [user, authLoading]);
 
-  // Save to localStorage on change
+  // Save to localStorage on change (only for logged-in user)
   useEffect(() => {
-    if (isInitialized) {
+    if (isInitialized && user) {
       try {
+        const userCartKey = `alzair_dates_cart_${user.id || user.email}`;
+        localStorage.setItem(userCartKey, JSON.stringify(cart));
         localStorage.setItem('alzair_dates_cart', JSON.stringify(cart));
       } catch (e) {
         console.error('Failed to save cart to localStorage', e);
       }
     }
-  }, [cart, isInitialized]);
+  }, [cart, isInitialized, user]);
 
   const showToast = (message: string, productName?: string, productImage?: string) => {
     const newToast: ToastState = {
@@ -81,6 +101,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (item: Omit<CartItem, 'quantity'>, qty = 1) => {
+    if (!user) {
+      showToast(`Please log in to purchase and add products to your bag.`);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {

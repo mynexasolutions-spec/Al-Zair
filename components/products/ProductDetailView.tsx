@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Product, getRelatedProducts } from '@/data/catalog';
+import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 
 interface ProductDetailViewProps {
@@ -29,6 +30,7 @@ interface ProductDetailViewProps {
 
 export function ProductDetailView({ product }: ProductDetailViewProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const { addToCart } = useCart();
 
   // Product Images Gallery (Main Image + Additional Uploaded Images)
@@ -109,6 +111,11 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   };
 
   const handleAddToCart = () => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      return;
+    }
+
     addToCart(
       {
         id: product.id,
@@ -122,6 +129,11 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   };
 
   const handleBuyNow = () => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(`/products/${product.id}`)}`);
+      return;
+    }
+
     addToCart(
       {
         id: product.id,
@@ -646,15 +658,19 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
 
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            if (!user) {
+                              router.push(`/login?redirect=${encodeURIComponent(`/products/${rel.id}`)}`);
+                              return;
+                            }
                             addToCart({
                               id: rel.id,
                               name: rel.name,
                               price: rel.price,
                               image: rel.image,
                               weight: rel.weight,
-                            })
-                          }
+                            });
+                          }}
                           aria-label={`Add ${rel.name} to cart`}
                           className="flex h-8 w-8 items-center justify-center rounded-full bg-[#171513] text-white shadow-sm transition hover:bg-[#b89047] hover:text-[#171513] active:scale-90"
                         >

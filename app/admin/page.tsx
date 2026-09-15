@@ -47,6 +47,21 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const [orders, setOrders] = useState<any[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
+
+  const fetchOrdersData = async () => {
+    try {
+      const res = await fetch('/api/admin/orders');
+      const json = await res.json();
+      if (res.ok && json.success && Array.isArray(json.data)) {
+        setOrders(json.data);
+        const sum = json.data.reduce((acc: number, o: any) => acc + (Number(o.total_amount) || 0), 0);
+        setTotalRevenue(sum);
+      }
+    } catch {}
+  };
+
   const fetchInquiriesAndSubscribers = async () => {
     try {
       const [inqRes, subRes] = await Promise.all([
@@ -70,24 +85,27 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     checkDb();
     fetchInquiriesAndSubscribers();
+    fetchOrdersData();
   }, []);
 
   const stats = [
     {
       title: 'Total Revenue',
-      value: '₹1,48,920',
-      change: '+18.4% this month',
+      value: `₹${totalRevenue.toLocaleString('en-IN')}`,
+      change: 'Calculated from DB orders',
       icon: IndianRupee,
       color: 'text-amber-400',
       bgColor: 'bg-amber-500/10',
+      href: '/admin/orders',
     },
     {
       title: 'Total Orders',
-      value: '138',
-      change: '+12 new today',
+      value: orders.length.toString(),
+      change: `${orders.filter((o) => o.order_status === 'processing').length} processing orders`,
       icon: ShoppingBag,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10',
+      href: '/admin/orders',
     },
     {
       title: 'Active Products',
@@ -109,51 +127,30 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  const recentOrders = [
-    {
-      id: 'ORD-9821',
-      customer: 'Priya Sharma',
-      items: 'Premium Halasi Dates (500g)',
-      amount: '₹450',
-      status: 'Delivered',
-      date: 'Today, 2:45 PM',
-    },
-    {
-      id: 'ORD-9820',
-      customer: 'Rahul Verma',
-      items: 'Royal Gift Hamper, Almond Stuffed',
-      amount: '₹2,350',
-      status: 'Processing',
-      date: 'Today, 1:12 PM',
-    },
-    {
-      id: 'ORD-9819',
-      customer: 'Amina Khan',
-      items: 'Ajwa Dates (500g) x 2',
-      amount: '₹1,700',
-      status: 'Shipped',
-      date: 'Yesterday',
-    },
-    {
-      id: 'ORD-9818',
-      customer: 'Vikram Singh',
-      items: 'Chocolate Date Bites',
-      amount: '₹420',
-      status: 'Pending',
-      date: 'Yesterday',
-    },
-  ];
+  const recentOrders = orders.slice(0, 5).map((o) => ({
+    id: o.order_number || o.id,
+    customer: o.customer_name || 'Customer',
+    items: Array.isArray(o.items) && o.items.length > 0
+      ? o.items.map((i: any) => `${i.name} (x${i.quantity})`).join(', ')
+      : 'Gourmet Dates',
+    amount: `₹${Number(o.total_amount || 0).toLocaleString('en-IN')}`,
+    status: (o.order_status || 'processing').charAt(0).toUpperCase() + (o.order_status || 'processing').slice(1),
+    date: new Date(o.created_at || Date.now()).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+    }),
+  }));
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Delivered':
+    switch (status.toLowerCase()) {
+      case 'delivered':
         return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-      case 'Processing':
-        return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
-      case 'Shipped':
-        return 'bg-purple-500/15 text-purple-400 border-purple-500/30';
-      default:
+      case 'processing':
         return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+      case 'shipped':
+        return 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30';
+      default:
+        return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
     }
   };
 

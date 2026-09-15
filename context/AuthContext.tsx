@@ -108,6 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch {}
     setUser(null);
+    try {
+      localStorage.removeItem('alzair_dates_cart');
+      localStorage.removeItem('syab_dates_cart');
+    } catch {}
+    window.location.href = '/login';
   };
 
   const updateProfile = async (data: Partial<CustomerUser>) => {
