@@ -20,9 +20,30 @@ export type Product = {
   storage?: string;
   shipping?: string;
   galleryImages?: string[];
+  couponCode?: string;
+  couponDiscount?: string;
 };
 
+
 export const allProducts: Product[] = [
+  {
+    id: 'safawi-dates-premium',
+    name: 'Safawi Dates Premium',
+    category: 'Dates',
+    productType: 'Premium Dates',
+    price: 699,
+    originalPrice: 850,
+    discount: '18%',
+    rating: 4.9,
+    reviews: 142,
+    image: '/images/dates.jpg',
+    inStock: true,
+    weight: '500g',
+    salesCount: 480,
+    shortDescription: 'Exquisite dark, soft and moist Safawi dates known for their rich chewy texture and intense natural sweetness.',
+    couponCode: 'SAFAWI15',
+    couponDiscount: '15% OFF',
+  },
   {
     id: 'premium-halasi-dates',
     name: 'Premium Halasi Dates',
@@ -37,6 +58,8 @@ export const allProducts: Product[] = [
     inStock: true,
     weight: '500g',
     salesCount: 340,
+    couponCode: 'HALASI10',
+    couponDiscount: '10% OFF',
   },
   {
     id: 'ajwa-dates',

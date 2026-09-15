@@ -101,7 +101,17 @@ CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7. HOMEPAGE CONTENT & SECTIONS TABLE
+-- 8. GALLERY TABLE
+CREATE TABLE IF NOT EXISTS public.gallery (
+    id TEXT PRIMARY KEY,
+    image TEXT NOT NULL,
+    alt TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'Products',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 9. HOMEPAGE CONTENT & SECTIONS TABLE
 CREATE TABLE IF NOT EXISTS public.homepage_content (
     id TEXT PRIMARY KEY DEFAULT 'main_homepage',
     hero JSONB NOT NULL DEFAULT '{
@@ -153,7 +163,13 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_inquiries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.newsletter_subscribers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gallery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.homepage_content ENABLE ROW LEVEL SECURITY;
+
+-- Gallery: Public can view, Admins can manage
+CREATE POLICY "Public can view gallery" ON public.gallery FOR SELECT USING (true);
+CREATE POLICY "Admins can manage gallery" ON public.gallery FOR ALL USING (true);
+
 
 -- Homepage Content: Public can read, Admins can update
 CREATE POLICY "Public can view homepage content" ON public.homepage_content FOR SELECT USING (true);

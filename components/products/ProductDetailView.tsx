@@ -1,8 +1,10 @@
 'use client';
 
 import {
+  Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   Heart,
   Leaf,
   Minus,
@@ -12,6 +14,7 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
+  Tag,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -58,6 +61,46 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   const [quantity, setQuantity] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<string | null>('DESCRIPTION');
   const [wishlist, setWishlist] = useState<Record<string, boolean>>({});
+  const [copiedCoupon, setCopiedCoupon] = useState(false);
+  const rawCode = (product.couponCode || '').trim();
+  const rawDiscount = (product.couponDiscount || '').trim();
+
+  // Detect if rawDiscount is actually a coupon code (e.g. ALZ10-VTEG, SAFAWI15, EID20) instead of a discount label (e.g. "10% OFF")
+  const isDiscountActuallyACode =
+    Boolean(rawDiscount) &&
+    !rawDiscount.includes('%') &&
+    !rawDiscount.toLowerCase().includes('off') &&
+    !rawDiscount.includes(' ') &&
+    rawDiscount.length >= 3;
+
+  // Determine the single active coupon code
+  let activeCouponCode = '';
+  if (isDiscountActuallyACode) {
+    activeCouponCode = rawDiscount.toUpperCase();
+  } else if (rawCode) {
+    activeCouponCode = rawCode.toUpperCase();
+  }
+
+  // Format the discount badge: NEVER show a coupon code in the badge
+  let activeCouponDiscount = '';
+  if (rawDiscount && !isDiscountActuallyACode) {
+    activeCouponDiscount = rawDiscount;
+  } else if (activeCouponCode) {
+    const percentMatch = activeCouponCode.match(/(\d{1,2})/);
+    if (percentMatch && Number(percentMatch[1]) > 0 && Number(percentMatch[1]) <= 90) {
+      activeCouponDiscount = `${percentMatch[1]}% OFF`;
+    } else {
+      activeCouponDiscount = 'SPECIAL OFFER';
+    }
+  }
+
+  const handleCopyCoupon = () => {
+    if (activeCouponCode) {
+      navigator.clipboard.writeText(activeCouponCode);
+      setCopiedCoupon(true);
+      setTimeout(() => setCopiedCoupon(false), 2500);
+    }
+  };
 
   const relatedProducts = getRelatedProducts(product.id, product.category, 4);
 
@@ -89,7 +132,11 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
       },
       quantity
     );
-    router.push('/cart');
+    if (activeCouponCode) {
+      router.push(`/cart?coupon=${encodeURIComponent(activeCouponCode)}`);
+    } else {
+      router.push('/cart');
+    }
   };
 
   const toggleWishlist = (id: string) => {
@@ -331,7 +378,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                       <div className="px-4 pb-4 pt-1 text-xs leading-relaxed text-[#554e44] animate-in fade-in">
                         <p>
                           {product.shipping ||
-                            'Free standard shipping on orders above ₹999. Dispatched within 24 hours in insulated protective packaging. Standard delivery within 3-5 business days across India.'}
+                            'Free standard shipping on all orders. Dispatched within 24 hours in insulated protective packaging. Standard delivery within 3-5 business days across India.'}
                         </p>
                       </div>
                     )}
@@ -399,6 +446,55 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
                 <span>In Stock ({product.weight || '500g'})</span>
               </div>
+
+              {/* Exclusive Product Coupon Offer */}
+              {activeCouponCode && (
+                <div className="mt-5 rounded-xl border-2 border-dashed border-[#c49a4a]/80 bg-[#ede5d8]/80 p-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#b89047] text-[#171513]">
+                        <Tag size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#a9823b] font-sans">
+                            Exclusive Coupon Offer
+                          </span>
+                          {activeCouponDiscount && (
+                            <span className="rounded-full bg-[#171513] px-2 py-0.5 text-[10px] font-bold text-[#f5f0e7] font-sans">
+                              {activeCouponDiscount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-[#554e44] font-sans">
+                          Use code <span className="font-mono font-bold text-[#171513] bg-white px-2 py-0.5 rounded border border-[#dccbb4] select-all">{activeCouponCode}</span> at cart
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyCoupon}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold font-sans transition-all duration-300 shrink-0 shadow-sm ${
+                        copiedCoupon
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-[#171513] text-[#f5f0e7] hover:bg-[#b89047] hover:text-[#171513]'
+                      }`}
+                    >
+                      {copiedCoupon ? (
+                        <>
+                          <Check size={14} />
+                          <span>COPIED!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} />
+                          <span>COPY CODE</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Quantity Stepper & Action Buttons */}
               <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">

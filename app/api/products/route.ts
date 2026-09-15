@@ -63,7 +63,10 @@ export async function GET(req: Request) {
         ingredients: item.ingredients || '',
         storage: item.storage || '',
         shipping: item.shipping || '',
+        couponCode: item.coupon_code || item.couponCode || '',
+        couponDiscount: item.coupon_discount || item.couponDiscount || '',
       }));
+
 
       if (productId) {
         return NextResponse.json({ success: true, source: 'supabase', data: formatted[0] });
@@ -140,6 +143,8 @@ export async function POST(req: Request) {
       ingredients: body.ingredients || '',
       storage: body.storage || '',
       shipping: body.shipping || '',
+      couponCode: body.couponCode || '',
+      couponDiscount: body.couponDiscount || '',
     };
 
     // 1. Save to local products store
@@ -169,6 +174,8 @@ export async function POST(req: Request) {
         ingredients: product.ingredients,
         storage: product.storage,
         shipping: product.shipping,
+        coupon_code: product.couponCode || null,
+        coupon_discount: product.couponDiscount || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -179,8 +186,10 @@ export async function POST(req: Request) {
       if (!error) {
         supabaseSaved = true;
       } else {
-        // If gallery_images column does not exist in Supabase yet, retry without that column
+        // Retry without extra columns if not yet in schema
         delete dbRecord.gallery_images;
+        delete dbRecord.coupon_code;
+        delete dbRecord.coupon_discount;
         const { error: retryErr } = await supabaseAdmin
           .from('products')
           .upsert(dbRecord, { onConflict: 'id' });
@@ -230,6 +239,8 @@ export async function PUT(req: Request) {
       price: Number(body.price),
       originalPrice: body.originalPrice ? Number(body.originalPrice) : undefined,
       galleryImages: galleryImages.length > 0 ? galleryImages : [body.image || existing?.image || '/images/dates.jpg'],
+      couponCode: body.couponCode !== undefined ? body.couponCode : existing?.couponCode,
+      couponDiscount: body.couponDiscount !== undefined ? body.couponDiscount : existing?.couponDiscount,
     };
 
     const updatedList = currentList.map((p) => (p.id === id ? updatedProduct : p));
@@ -252,6 +263,8 @@ export async function PUT(req: Request) {
         ingredients: updatedProduct.ingredients,
         storage: updatedProduct.storage,
         shipping: updatedProduct.shipping,
+        coupon_code: updatedProduct.couponCode || null,
+        coupon_discount: updatedProduct.couponDiscount || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -262,9 +275,12 @@ export async function PUT(req: Request) {
 
       if (error) {
         delete dbRecord.gallery_images;
+        delete dbRecord.coupon_code;
+        delete dbRecord.coupon_discount;
         await supabaseAdmin.from('products').update(dbRecord).eq('id', id);
       }
     } catch {}
+
 
     try {
       revalidatePath('/products');

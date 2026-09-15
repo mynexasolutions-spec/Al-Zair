@@ -87,6 +87,7 @@ export default function AdminHomePageEditor() {
 
   useEffect(() => {
     fetchHomeContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save Content Directly to API & DB

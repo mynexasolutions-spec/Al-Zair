@@ -69,6 +69,8 @@ export default function AdminProductsPage() {
     ingredients: string;
     storage: string;
     shipping: string;
+    couponCode: string;
+    couponDiscount: string;
   }>({
     id: '',
     name: '',
@@ -88,7 +90,10 @@ export default function AdminProductsPage() {
     ingredients: '',
     storage: '',
     shipping: '',
+    couponCode: '',
+    couponDiscount: '',
   });
+
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -182,6 +187,8 @@ export default function AdminProductsPage() {
       ingredients: '',
       storage: '',
       shipping: '',
+      couponCode: '',
+      couponDiscount: '',
     });
     setModalOpen(true);
   };
@@ -214,9 +221,12 @@ export default function AdminProductsPage() {
       ingredients: product.ingredients || '',
       storage: product.storage || '',
       shipping: product.shipping || '',
+      couponCode: product.couponCode || '',
+      couponDiscount: product.couponDiscount || '',
     });
     setModalOpen(true);
   };
+
 
   // Upload to Cloudinary Helper
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -316,6 +326,28 @@ export default function AdminProductsPage() {
     const mainImage = formData.image || cleanGallery[0] || '/images/dates.jpg';
     const finalGallery = cleanGallery.length > 0 ? cleanGallery : [mainImage];
 
+    let couponCode = formData.couponCode ? formData.couponCode.trim().toUpperCase() : undefined;
+    let couponDiscount = formData.couponDiscount ? formData.couponDiscount.trim() : undefined;
+
+    // If admin pasted/entered a coupon code (e.g. ALZ10-VTEG) into the discount box
+    const isDiscountActuallyCode =
+      Boolean(couponDiscount) &&
+      !couponDiscount!.includes('%') &&
+      !couponDiscount!.toLowerCase().includes('off') &&
+      !couponDiscount!.includes(' ') &&
+      couponDiscount!.length >= 3;
+
+    if (isDiscountActuallyCode) {
+      couponCode = couponDiscount!.toUpperCase();
+      couponDiscount = undefined;
+    }
+
+    // Auto-generate human-friendly discount label (e.g. "10% OFF" or "15% OFF") if empty
+    if (couponCode && (!couponDiscount || isDiscountActuallyCode)) {
+      const match = couponCode.match(/(\d{1,2})/);
+      couponDiscount = match && Number(match[1]) > 0 && Number(match[1]) <= 90 ? `${match[1]}% OFF` : '15% OFF';
+    }
+
     const productPayload: Product = {
       id,
       name: formData.name.trim(),
@@ -335,9 +367,12 @@ export default function AdminProductsPage() {
       ingredients: formData.ingredients,
       storage: formData.storage,
       shipping: formData.shipping,
+      couponCode,
+      couponDiscount,
     };
 
     try {
+
       if (editingProduct) {
         // Update
         const res = await fetch('/api/products', {
@@ -787,6 +822,37 @@ export default function AdminProductsPage() {
                     </label>
                   </div>
 
+                  {/* Coupon Code & Discount (Optional) */}
+                  <div>
+                    <label className="block text-white/80 mb-1.5 font-semibold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <Tag size={13} className="text-[#c49a4a]" />
+                      <span>Promotional Coupon Code (Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ALZAIR15, RAMADAN20, SPECIAL50"
+                      value={formData.couponCode}
+                      onChange={(e) => setFormData({ ...formData, couponCode: e.target.value.toUpperCase() })}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 p-3 text-white placeholder:text-white/30 outline-none focus:border-[#c49a4a] font-mono text-xs uppercase"
+                    />
+                    <p className="mt-1 text-[10px] text-white/40">
+                      Display a 1-click &quot;Copy Coupon&quot; box on product details page.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-white/80 mb-1.5 font-semibold uppercase tracking-wider text-[11px]">
+                      Coupon Discount Offer Description
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 15% OFF, ₹100 OFF on this item"
+                      value={formData.couponDiscount}
+                      onChange={(e) => setFormData({ ...formData, couponDiscount: e.target.value })}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 p-3 text-white placeholder:text-white/30 outline-none focus:border-[#c49a4a]"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-white/80 mb-1.5 font-semibold uppercase tracking-wider text-[11px]">
                       Product URL Slug / ID (Optional)
@@ -801,6 +867,7 @@ export default function AdminProductsPage() {
                   </div>
                 </div>
               )}
+
 
               {/* ==================== TAB 2: PRODUCT GALLERY (3–4 PHOTOS) ==================== */}
               {activeFormTab === 'gallery' && (
@@ -1053,7 +1120,7 @@ export default function AdminProductsPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Dispatched within 24 hours. Free delivery on orders above ₹999."
+                      placeholder="e.g. Dispatched within 24 hours. Free standard delivery on all orders."
                       value={formData.shipping}
                       onChange={(e) => setFormData({ ...formData, shipping: e.target.value })}
                       className="w-full rounded-xl border border-white/15 bg-white/5 p-3 text-white placeholder:text-white/30 outline-none focus:border-[#c49a4a]"

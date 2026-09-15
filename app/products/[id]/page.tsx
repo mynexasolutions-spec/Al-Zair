@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 interface ProductPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 async function fetchLiveProduct(id: string): Promise<Product | null> {
@@ -77,6 +77,8 @@ async function fetchLiveProduct(id: string): Promise<Product | null> {
         ingredients: data.ingredients || '',
         storage: data.storage || '',
         shipping: data.shipping || '',
+        couponCode: data.coupon_code || data.couponCode || '',
+        couponDiscount: data.coupon_discount || data.couponDiscount || '',
       };
     }
   } catch {}
@@ -89,7 +91,7 @@ async function fetchLiveProduct(id: string): Promise<Product | null> {
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
-  const { id } = await params;
+  const { id } = params;
   const product = await fetchLiveProduct(id);
 
   if (!product) {
@@ -107,7 +109,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 }
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {
-  const { id } = await params;
+  const { id } = params;
   const product = await fetchLiveProduct(id);
 
   if (!product) {

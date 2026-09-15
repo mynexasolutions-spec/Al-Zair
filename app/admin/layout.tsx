@@ -11,6 +11,7 @@ import {
   MailCheck,
   Menu,
   ShoppingBag,
+  TicketPercent,
   UserCheck,
   X,
 } from 'lucide-react';
@@ -98,6 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { label: 'Home Page', href: '/admin/home', icon: Home },
     { label: 'Products', href: '/admin/products', icon: Boxes },
+    { label: 'Coupons', href: '/admin/coupons', icon: TicketPercent },
     { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
     { label: 'Gallery', href: '/admin/gallery', icon: ImageIcon },
     { label: 'Inquiries', href: '/admin/messages', icon: Mail },

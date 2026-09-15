@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Cormorant_Garamond, Inter } from 'next/font/google';
+import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 
@@ -16,11 +17,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${inter.variable} ${cormorant.variable}`}>
-        <CartProvider>
-          {children}
-          <ToastContainer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            {children}
+            <ToastContainer />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

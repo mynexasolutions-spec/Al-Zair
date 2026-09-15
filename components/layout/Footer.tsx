@@ -135,6 +135,8 @@ function FooterList({ title, items }: { title: string; items: string[] }) {
     if (item === 'Gallery') return '/gallery';
     if (item === 'Contact Us' || item === 'Contact') return '/contact';
     if (item === 'Privacy Policy') return '/privacy-policy';
+    if (item === 'Return Policy' || item === 'Return & Refund Policy') return '/return-policy';
+    if (item === 'Terms & Conditions' || item === 'Terms and Conditions' || item === 'Terms of Service') return '/terms-and-conditions';
     if (item === 'Benefits') return '/#benefits';
     return `/#${item.toLowerCase().replace(/ & | /g, '-')}`;
   };
