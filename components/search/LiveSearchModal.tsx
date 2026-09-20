@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Flame,
   Loader2,
+  Package,
   Search,
   Sparkles,
   Tag,
@@ -14,7 +15,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { allProducts, Product } from '@/data/catalog';
+import { Product } from '@/data/catalog';
 
 interface LiveSearchModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ export function LiveSearchModal({ isOpen, onClose }: LiveSearchModalProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [products, setProducts] = useState<Product[]>(allProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Product[]>([]);
 
@@ -204,13 +205,17 @@ export function LiveSearchModal({ isOpen, onClose }: LiveSearchModalProps) {
                     className="group flex items-center justify-between p-3 rounded-xl cursor-pointer transition hover:bg-white/5"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black">
-                        <Image
-                          src={product.image || '/images/dates.jpg'}
-                          alt={product.name}
-                          fill
-                          className="object-cover"
-                        />
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black flex items-center justify-center">
+                        {product.image ? (
+                          <Image
+                            src={product.image}
+                            alt={product.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <Package size={20} className="text-[#d6b15e]/60" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#c49a4a]">

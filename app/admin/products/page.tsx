@@ -27,7 +27,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { allProducts, Product } from '@/data/catalog';
+import { Product } from '@/data/catalog';
 
 const defaultCategories = ['Dates', 'Dates Laddu', 'Stuffed Dates', 'Date Bites', 'Gift Packs'];
 const productTypes = ['Premium Dates', 'Healthy Snacks', 'Gift Products'];
@@ -120,10 +120,10 @@ export default function AdminProductsPage() {
       if (json.success && Array.isArray(json.data)) {
         setProducts(json.data);
       } else {
-        setProducts(allProducts);
+        setProducts([]);
       }
     } catch {
-      setProducts(allProducts);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -323,8 +323,11 @@ export default function AdminProductsPage() {
     const cleanGallery = formData.galleryImages.filter(
       (img) => img && typeof img === 'string' && img.trim() !== ''
     );
-    const mainImage = formData.image || cleanGallery[0] || '/images/dates.jpg';
-    const finalGallery = cleanGallery.length > 0 ? cleanGallery : [mainImage];
+
+    const mainImage = formData.image || cleanGallery[0] || '';
+    const finalGallery = Array.from(
+      new Set([mainImage, ...cleanGallery].filter((img) => img && typeof img === 'string' && img.trim() !== ''))
+    );
 
     let couponCode = formData.couponCode ? formData.couponCode.trim().toUpperCase() : undefined;
     let couponDiscount = formData.couponDiscount ? formData.couponDiscount.trim() : undefined;

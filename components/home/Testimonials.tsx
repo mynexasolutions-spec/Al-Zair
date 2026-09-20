@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { TestimonialItem, defaultHomepageContent } from '@/data/homepageContent';
 
@@ -10,7 +10,24 @@ interface TestimonialsProps {
 }
 
 export function Testimonials({ items }: TestimonialsProps) {
-  const testimonials = items && items.length > 0 ? items : defaultHomepageContent.testimonials;
+  const testimonials = useMemo(() => {
+    const rawList = items && items.length > 0 ? items : defaultHomepageContent.testimonials;
+    const seenNames = new Set<string>();
+    const seenIds = new Set<string>();
+    const unique: TestimonialItem[] = [];
+
+    for (const t of rawList) {
+      const normalizedName = (t.name || '').trim().toLowerCase();
+      const id = t.id || '';
+      if (normalizedName && !seenNames.has(normalizedName) && (!id || !seenIds.has(id))) {
+        seenNames.add(normalizedName);
+        if (id) seenIds.add(id);
+        unique.push(t);
+      }
+    }
+    return unique;
+  }, [items]);
+
   const [index, setIndex] = useState(0);
   const total = testimonials.length;
 

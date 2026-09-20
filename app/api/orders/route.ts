@@ -1,52 +1,26 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-const ORDERS_FILE = path.join(process.cwd(), 'data', 'orders.json');
-const COUPONS_FILE = path.join(process.cwd(), 'data', 'coupons.json');
-
-function getLocalOrders(): any[] {
-  try {
-    if (fs.existsSync(ORDERS_FILE)) {
-      const raw = fs.readFileSync(ORDERS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {}
-  return [];
-}
-
-function saveLocalOrders(orders: any[]) {
-  try {
-    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf-8');
-  } catch {}
-}
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const isAdmin = searchParams.get('admin') === 'true';
 
-    // 1. If Admin request, return all orders
+    // 1. If Admin request, return all orders from Supabase
     if (isAdmin) {
-      try {
-        const { data, error } = await supabaseAdmin
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          saveLocalOrders(data);
-          return NextResponse.json({ success: true, source: 'supabase', data });
-        }
-      } catch {}
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
 
-      const local = getLocalOrders();
-      return NextResponse.json({ success: true, source: 'local', data: local });
+      return NextResponse.json({ success: true, source: 'supabase', data: data || [] });
     }
 
     // 2. If Customer request, get customer session
@@ -80,24 +54,17 @@ export async function GET(req: Request) {
     }
 
     // Fetch customer's orders from Supabase
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('orders')
-        .select('*')
-        .or(`customer_email.eq.${customerEmail},customer_id.eq.${customerId}`)
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .or(`customer_email.eq.${customerEmail},customer_id.eq.${customerId}`)
+      .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return NextResponse.json({ success: true, data });
-      }
-    } catch {}
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
 
-    const local = getLocalOrders();
-    const userOrders = local.filter(
-      (o) => (o.customer_email || '').toLowerCase() === customerEmail || (customerId && o.customer_id === customerId)
-    );
-
-    return NextResponse.json({ success: true, data: userOrders });
+    return NextResponse.json({ success: true, source: 'supabase', data: data || [] });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err?.message || 'Error fetching orders' }, { status: 500 });
   }
@@ -157,46 +124,31 @@ export async function POST(req: Request) {
     };
 
     // 2. Save to Supabase (orders + order_items relational table)
-    try {
-      const { error: sbErr } = await supabaseAdmin.from('orders').insert([newOrder]);
-      if (sbErr) console.error('Supabase order insert error:', sbErr.message);
-
-      if (Array.isArray(body.items) && body.items.length > 0) {
-        const itemRows = body.items.map((item: any) => ({
-          id: crypto.randomUUID(),
-          order_id: orderId,
-          product_id: String(item.id || item.productId || 'custom'),
-          product_name: item.name || 'Premium Dates',
-          product_image: item.image || null,
-          price: Number(item.price) || 0,
-          quantity: Number(item.quantity) || 1,
-          weight: item.weight || '500g',
-          total_price: (Number(item.price) || 0) * (Number(item.quantity) || 1),
-          created_at: new Date().toISOString(),
-        }));
-        await supabaseAdmin.from('order_items').insert(itemRows);
-      }
-    } catch (err: any) {
-      console.error('Supabase catch error:', err?.message);
+    const { error: sbErr } = await supabaseAdmin.from('orders').insert([newOrder]);
+    if (sbErr) {
+      return NextResponse.json({ success: false, error: sbErr.message }, { status: 500 });
     }
 
-    // 3. Save to local orders.json
-    const currentOrders = getLocalOrders();
-    saveLocalOrders([newOrder, ...currentOrders]);
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      const itemRows = body.items.map((item: any) => ({
+        id: crypto.randomUUID(),
+        order_id: orderId,
+        product_id: String(item.id || item.productId || 'custom'),
+        product_name: item.name || 'Premium Dates',
+        product_image: item.image || null,
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+        weight: item.weight || '500g',
+        total_price: (Number(item.price) || 0) * (Number(item.quantity) || 1),
+        created_at: new Date().toISOString(),
+      }));
+      await supabaseAdmin.from('order_items').insert(itemRows);
+    }
 
-    // 4. If coupon was used, increment usage count
+    // 3. If coupon was used, increment usage count in Supabase
     if (body.couponCode) {
       const cleanCoupon = body.couponCode.trim().toUpperCase();
       try {
-        if (fs.existsSync(COUPONS_FILE)) {
-          const rawCoupons = fs.readFileSync(COUPONS_FILE, 'utf-8');
-          const couponsList = JSON.parse(rawCoupons);
-          const updatedCoupons = couponsList.map((c: any) =>
-            c.code.toUpperCase() === cleanCoupon ? { ...c, usageCount: (c.usageCount || 0) + 1 } : c
-          );
-          fs.writeFileSync(COUPONS_FILE, JSON.stringify(updatedCoupons, null, 2), 'utf-8');
-        }
-
         const { data: coupData } = await supabaseAdmin
           .from('coupons')
           .select('id, usage_count')

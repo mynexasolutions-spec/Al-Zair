@@ -15,27 +15,23 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { allProducts } from '@/data/catalog';
 import { supabase } from '@/lib/supabase/client';
 
 export default function AdminDashboardPage() {
-  const [productCount, setProductCount] = useState<number>(allProducts.length);
-  const [inquiryCount, setInquiryCount] = useState<number>(3);
-  const [unreadInquiryCount, setUnreadInquiryCount] = useState<number>(1);
-  const [subscriberCount, setSubscriberCount] = useState<number>(2);
+  const [productCount, setProductCount] = useState<number>(0);
+  const [inquiryCount, setInquiryCount] = useState<number>(0);
+  const [unreadInquiryCount, setUnreadInquiryCount] = useState<number>(0);
+  const [subscriberCount, setSubscriberCount] = useState<number>(0);
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Check Supabase connection & Auto-Init Schema live
+  // Check Supabase connection
   const checkDb = async () => {
     setLoading(true);
     try {
-      // Auto-trigger database schema initialization
-      await fetch('/api/admin/db/init', { method: 'POST' });
-
-      const { data, error } = await supabase.from('products').select('id', { count: 'exact' });
-      if (!error && data) {
-        setProductCount(data.length > 0 ? data.length : allProducts.length);
+      const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
+      if (!error && count !== null) {
+        setProductCount(count);
         setDbConnected(true);
       } else {
         setDbConnected(true);

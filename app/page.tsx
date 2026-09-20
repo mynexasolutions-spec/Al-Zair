@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import { Gallery } from '@/components/home/Gallery';
@@ -16,25 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-function getSavedServerContent(): HomepageContent | null {
-  try {
-    const filePath = path.join(process.cwd(), 'data', 'homepageContent.json');
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch {}
-  return null;
-}
-
 async function getHomepageContent(): Promise<HomepageContent> {
-  // 1. Check saved server backend JSON file (always updated in real-time)
-  const saved = getSavedServerContent();
-  if (saved) {
-    return saved;
-  }
-
-  // 2. Check PostgreSQL in Supabase
   try {
     const { data, error } = await supabaseAdmin
       .from('homepage_content')
@@ -52,7 +32,6 @@ async function getHomepageContent(): Promise<HomepageContent> {
     }
   } catch {}
 
-  // 3. Fallback to default
   return defaultHomepageContent;
 }
 

@@ -1,25 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
-
-function saveToLocalJson(inquiry: any) {
-  try {
-    const filePath = path.join(process.cwd(), 'data', 'inquiries.json');
-    let list: any[] = [];
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      list = JSON.parse(raw);
-    }
-    // Prepend new inquiry
-    list.unshift(inquiry);
-    fs.writeFileSync(filePath, JSON.stringify(list, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save inquiry to local JSON:', err);
-  }
-}
 
 export async function POST(req: Request) {
   try {
@@ -49,38 +31,22 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
-    // 1. Attempt saving to Supabase
-    let savedData = null;
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('contact_inquiries')
-        .insert([newInquiry])
-        .select()
-        .single();
+    const { data, error } = await supabaseAdmin
+      .from('contact_inquiries')
+      .insert([newInquiry])
+      .select()
+      .single();
 
-      if (!error && data) {
-        savedData = data;
-      } else {
-        console.warn('Supabase inquiry insert note:', error?.message);
-      }
-    } catch (dbErr: any) {
-      console.warn('Supabase inquiry insert error:', dbErr?.message);
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
-
-    // 2. Always persist to local inquiries.json (with unique id if not from Supabase)
-    const recordToSave = savedData || {
-      id: `inq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      ...newInquiry,
-    };
-    saveToLocalJson(recordToSave);
 
     return NextResponse.json({
       success: true,
       message: 'Thank you! Your message has been sent successfully.',
-      data: recordToSave,
+      data: data || newInquiry,
     });
   } catch (err: any) {
-    console.error('Contact API error:', err);
     return NextResponse.json(
       { success: false, error: err?.message || 'Failed to submit inquiry.' },
       { status: 500 }

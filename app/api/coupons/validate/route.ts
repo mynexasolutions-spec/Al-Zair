@@ -1,13 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { allProducts } from '@/data/catalog';
 
 export const dynamic = 'force-dynamic';
-
-const COUPONS_FILE = path.join(process.cwd(), 'data', 'coupons.json');
-const PRODUCTS_FILE = path.join(process.cwd(), 'data', 'products.json');
 
 export async function POST(req: Request) {
   try {
@@ -19,104 +13,79 @@ export async function POST(req: Request) {
       return NextResponse.json({ valid: false, message: 'Please enter a coupon code.' }, { status: 400 });
     }
 
-    // 1. Check in Coupons DB / JSON
-    let allCoupons: any[] = [];
-    try {
-      const { data } = await supabaseAdmin.from('coupons').select('*');
-      if (data && data.length > 0) {
-        allCoupons = data.map((item: any) => ({
-          id: item.id,
-          code: item.code.toUpperCase(),
-          discountType: item.discount_type || 'percentage',
-          discountValue: Number(item.discount_value) || 0,
-          minOrderAmount: Number(item.min_order_amount) || 0,
-          maxDiscount: item.max_discount ? Number(item.max_discount) : null,
-          expiresAt: item.expires_at || null,
-          usageLimit: item.usage_limit ? Number(item.usage_limit) : null,
-          usageCount: Number(item.usage_count) || 0,
-          isActive: Boolean(item.is_active !== false),
-          description: item.description || '',
-        }));
-      }
-    } catch {}
+    // 1. Check in Coupons Supabase Table
+    const { data: couponData, error: couponError } = await supabaseAdmin
+      .from('coupons')
+      .select('*')
+      .ilike('code', code)
+      .maybeSingle();
 
-    if (allCoupons.length === 0 && fs.existsSync(COUPONS_FILE)) {
-      try {
-        const raw = fs.readFileSync(COUPONS_FILE, 'utf-8');
-        allCoupons = JSON.parse(raw);
-      } catch {}
-    }
-
-    const matchedCoupon = allCoupons.find((c) => c.code.toUpperCase() === code);
-
-    if (matchedCoupon) {
+    if (!couponError && couponData) {
       // Check active status
-      if (matchedCoupon.isActive === false) {
+      if (couponData.is_active === false) {
         return NextResponse.json({ valid: false, message: `Coupon code "${code}" is currently inactive.` });
       }
 
       // Check expiry date
-      if (matchedCoupon.expiresAt) {
-        const expiry = new Date(matchedCoupon.expiresAt);
+      if (couponData.expires_at) {
+        const expiry = new Date(couponData.expires_at);
         if (expiry.getTime() < Date.now()) {
           return NextResponse.json({ valid: false, message: `Coupon code "${code}" has expired on ${expiry.toLocaleDateString()}.` });
         }
       }
 
+      const minOrder = Number(couponData.min_order_amount) || 0;
       // Check min order amount
-      if (matchedCoupon.minOrderAmount && subtotal < matchedCoupon.minOrderAmount) {
+      if (minOrder > 0 && subtotal < minOrder) {
         return NextResponse.json({
           valid: false,
-          message: `Coupon code "${code}" requires a minimum order of ₹${matchedCoupon.minOrderAmount.toLocaleString('en-IN')}. Add ₹${(matchedCoupon.minOrderAmount - subtotal).toLocaleString('en-IN')} more to qualify.`,
+          message: `Coupon code "${code}" requires a minimum order of ₹${minOrder.toLocaleString('en-IN')}. Add ₹${(minOrder - subtotal).toLocaleString('en-IN')} more to qualify.`,
         });
       }
 
+      const usageLimit = couponData.usage_limit ? Number(couponData.usage_limit) : null;
+      const usageCount = Number(couponData.usage_count) || 0;
       // Check usage limit
-      if (matchedCoupon.usageLimit && matchedCoupon.usageCount >= matchedCoupon.usageLimit) {
+      if (usageLimit !== null && usageCount >= usageLimit) {
         return NextResponse.json({ valid: false, message: `Coupon code "${code}" has reached its maximum usage limit.` });
       }
 
       // Calculate discount
       let discount = 0;
-      if (matchedCoupon.discountType === 'percentage') {
-        discount = Math.round(subtotal * (matchedCoupon.discountValue / 100));
-        if (matchedCoupon.maxDiscount && discount > matchedCoupon.maxDiscount) {
-          discount = matchedCoupon.maxDiscount;
+      const discountType = couponData.discount_type || 'percentage';
+      const discountVal = Number(couponData.discount_value) || 0;
+      const maxDiscount = couponData.max_discount ? Number(couponData.max_discount) : null;
+
+      if (discountType === 'percentage') {
+        discount = Math.round(subtotal * (discountVal / 100));
+        if (maxDiscount && discount > maxDiscount) {
+          discount = maxDiscount;
         }
       } else {
-        discount = Math.min(subtotal, matchedCoupon.discountValue);
+        discount = Math.min(subtotal, discountVal);
       }
 
       return NextResponse.json({
         valid: true,
-        code: matchedCoupon.code,
+        code: couponData.code,
         discount,
-        discountType: matchedCoupon.discountType,
-        discountValue: matchedCoupon.discountValue,
-        description: matchedCoupon.description || `${matchedCoupon.discountValue}${matchedCoupon.discountType === 'percentage' ? '% OFF' : '₹ FLAT OFF'}`,
-        message: `Coupon ${matchedCoupon.code} applied successfully! Saved ₹${discount.toLocaleString('en-IN')}.`,
+        discountType,
+        discountValue: discountVal,
+        description: couponData.description || `${discountVal}${discountType === 'percentage' ? '% OFF' : '₹ FLAT OFF'}`,
+        message: `Coupon ${couponData.code} applied successfully! Saved ₹${discount.toLocaleString('en-IN')}.`,
       });
     }
 
-    // 2. Check Product-level Coupons
-    let products: any[] = allProducts;
-    if (fs.existsSync(PRODUCTS_FILE)) {
-      try {
-        const raw = fs.readFileSync(PRODUCTS_FILE, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) products = parsed;
-      } catch {}
-    }
+    // 2. Check Product-level Coupons from Supabase products table
+    const { data: prodData } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .or(`coupon_code.ilike.${code},coupon_discount.ilike.${code}`);
 
-    const matchedProduct = products.find(
-      (p) =>
-        (p.couponCode && p.couponCode.trim().toUpperCase() === code) ||
-        (p.couponDiscount && p.couponDiscount.trim().toUpperCase() === code)
-    );
-
-    if (matchedProduct) {
+    if (prodData && prodData.length > 0) {
+      const matchedProduct = prodData[0];
       let discount = 0;
-      const discountStr = (matchedProduct.couponDiscount || '').toUpperCase();
+      const discountStr = (matchedProduct.coupon_discount || matchedProduct.couponDiscount || '').toUpperCase();
       const percentMatch = discountStr.match(/(\d+)%/);
       const flatMatch = discountStr.match(/₹?\s*(\d+)/);
 
@@ -159,7 +128,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       valid: false,
-      message: 'Invalid or expired coupon code. Try SAFAWI15, RAMADAN20, ALZAIR10 or FIRST50.',
+      message: 'Invalid or expired coupon code. Try RAMADAN20, WELCOME10, or SAVE15.',
     });
   } catch (err: any) {
     return NextResponse.json({ valid: false, message: err?.message || 'Error validating coupon' }, { status: 500 });

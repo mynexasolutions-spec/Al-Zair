@@ -269,13 +269,14 @@ export default function AdminHomePageEditor() {
         .toUpperCase();
 
     let updatedTestimonials: TestimonialItem[] = [];
+    const trimmedName = testimonialForm.name.trim();
 
     if (editingTestimonial) {
       updatedTestimonials = content.testimonials.map((item) =>
         item.id === editingTestimonial.id
           ? {
               ...item,
-              name: testimonialForm.name.trim(),
+              name: trimmedName,
               initials: calculatedInitials,
               rating: Number(testimonialForm.rating),
               quote: testimonialForm.quote.trim(),
@@ -283,21 +284,43 @@ export default function AdminHomePageEditor() {
           : item
       );
     } else {
+      // Check if a testimonial with this name already exists
+      const existingIndex = content.testimonials.findIndex(
+        (t) => t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+
       const newItem: TestimonialItem = {
         id: Date.now().toString(),
-        name: testimonialForm.name.trim(),
+        name: trimmedName,
         initials: calculatedInitials,
         rating: Number(testimonialForm.rating),
         quote: testimonialForm.quote.trim(),
       };
-      updatedTestimonials = [...content.testimonials, newItem];
+
+      if (existingIndex >= 0) {
+        // Update existing testimonial instead of adding duplicate
+        updatedTestimonials = content.testimonials.map((item, idx) =>
+          idx === existingIndex ? { ...item, ...newItem, id: item.id } : item
+        );
+      } else {
+        updatedTestimonials = [...content.testimonials, newItem];
+      }
     }
 
-    const updatedContent = { ...content, testimonials: updatedTestimonials };
+    // Ensure all testimonials are unique by name
+    const seen = new Set<string>();
+    const uniqueTestimonials = updatedTestimonials.filter((t) => {
+      const key = t.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const updatedContent = { ...content, testimonials: uniqueTestimonials };
     setTestimonialModalOpen(false);
     await persistContentToDb(
       updatedContent,
-      editingTestimonial ? `Updated review from ${testimonialForm.name}!` : `Added new testimonial from ${testimonialForm.name}!`
+      editingTestimonial ? `Updated review from ${testimonialForm.name}!` : `Saved testimonial from ${testimonialForm.name}!`
     );
   };
 

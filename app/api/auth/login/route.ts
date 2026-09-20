@@ -1,22 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
-
-const CUSTOMERS_FILE = path.join(process.cwd(), 'data', 'customers.json');
-
-function getLocalCustomers(): any[] {
-  try {
-    if (fs.existsSync(CUSTOMERS_FILE)) {
-      const raw = fs.readFileSync(CUSTOMERS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {}
-  return [];
-}
 
 export async function POST(req: Request) {
   try {
@@ -31,58 +16,31 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Try Supabase customers table first
-    let foundUser: any = null;
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('customers')
-        .select('*')
-        .eq('email', cleanEmail)
-        .single();
+    // Query Supabase customers table
+    const { data, error } = await supabaseAdmin
+      .from('customers')
+      .select('*')
+      .eq('email', cleanEmail)
+      .maybeSingle();
 
-      if (!error && data && data.password === password) {
-        foundUser = {
-          id: data.id,
-          email: data.email,
-          fullName: data.full_name || data.fullName || 'Customer',
-          phone: data.phone || '',
-          address: data.address || '',
-          city: data.city || '',
-          postalCode: data.postal_code || data.postalCode || '',
-          state: data.state || '',
-          createdAt: data.created_at,
-        };
-      }
-    } catch {}
-
-    // 2. Fallback to local customers store
-    if (!foundUser) {
-      const local = getLocalCustomers();
-      const localMatch = local.find(
-        (c) => (c.email || '').toLowerCase() === cleanEmail && c.password === password
-      );
-
-      if (localMatch) {
-        foundUser = {
-          id: localMatch.id,
-          email: localMatch.email,
-          fullName: localMatch.fullName || localMatch.full_name || 'Customer',
-          phone: localMatch.phone || '',
-          address: localMatch.address || '',
-          city: localMatch.city || '',
-          postalCode: localMatch.postalCode || localMatch.postal_code || '',
-          state: localMatch.state || '',
-          createdAt: localMatch.created_at,
-        };
-      }
-    }
-
-    if (!foundUser) {
+    if (error || !data || data.password !== password) {
       return NextResponse.json(
         { success: false, message: 'Invalid email or password. Please check and try again.' },
         { status: 401 }
       );
     }
+
+    const foundUser = {
+      id: data.id,
+      email: data.email,
+      fullName: data.full_name || data.fullName || 'Customer',
+      phone: data.phone || '',
+      address: data.address || '',
+      city: data.city || '',
+      postalCode: data.postal_code || data.postalCode || '',
+      state: data.state || '',
+      createdAt: data.created_at,
+    };
 
     const response = NextResponse.json({
       success: true,

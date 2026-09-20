@@ -1,11 +1,11 @@
 'use client';
 
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, ShoppingBag, Star, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, Package, ShoppingBag, Star, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { allProducts, Product } from '@/data/catalog';
+import { Product } from '@/data/catalog';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 
@@ -32,7 +32,7 @@ function ProductsContent() {
   const { addToCart } = useCart();
 
   // Dynamic Data State
-  const [products, setProducts] = useState<Product[]>(allProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>(defaultCategories);
   const [loading, setLoading] = useState(false);
 
@@ -422,13 +422,20 @@ function ProductsContent() {
                         {/* Product Image Area */}
                         <div className="relative aspect-square w-full overflow-hidden bg-[#171512]">
                           <Link href={`/products/${product.id}`} className="block h-full w-full">
-                            <Image
-                              src={product.image || '/images/dates.jpg'}
-                              alt={product.name}
-                              fill
-                              className="object-cover transition-transform duration-500 group-hover:scale-105"
-                              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 25vw"
-                            />
+                            {product.image ? (
+                              <Image
+                                src={product.image}
+                                alt={product.name}
+                                fill
+                                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 25vw"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center bg-[#1a1714]">
+                                <Package size={32} className="mb-2 opacity-30 text-[#d6b15e]" />
+                                <span className="text-[10px] font-medium uppercase tracking-wider text-[#d6b15e]/70">No Image</span>
+                              </div>
+                            )}
                           </Link>
 
                           {/* Discount Tag */}

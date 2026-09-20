@@ -1,85 +1,58 @@
-import fs from 'fs';
-import path from 'path';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { defaultHomepageContent } from '@/data/homepageContent';
 
 export const dynamic = 'force-dynamic';
 
-const fallbackCategories = [
-  'Dates',
-  'Dates Laddu',
-  'Stuffed Dates',
-  'Date Bites',
-  'Gift Packs',
-];
-
 export async function GET() {
   try {
-    const categoriesSet = new Set<string>(fallbackCategories);
-    let categoryCards: { id: string; name: string; image: string; link: string }[] =
-      defaultHomepageContent.featured_products;
+    const categoriesSet = new Set<string>();
+    let categoryCards: { id: string; name: string; image: string; link: string }[] = [];
 
-    // 1. Check Supabase homepage_content
-    try {
-      const { data } = await supabaseAdmin
-        .from('homepage_content')
-        .select('featured_products')
-        .eq('id', 'main_homepage')
-        .single();
+    // 1. Fetch configured featured categories from Supabase homepage_content
+    const { data: homeData, error: homeError } = await supabaseAdmin
+      .from('homepage_content')
+      .select('featured_products')
+      .eq('id', 'main_homepage')
+      .single();
 
-      if (data?.featured_products && Array.isArray(data.featured_products) && data.featured_products.length > 0) {
-        categoryCards = data.featured_products;
-        // Keep order of categories as configured by admin
-        categoriesSet.clear();
-        data.featured_products.forEach((c: any) => {
-          if (c.name && c.name.trim()) categoriesSet.add(c.name.trim());
-        });
-      }
-    } catch {}
-
-    // 2. Check local homepageContent.json if Supabase didn't have custom items
-    if (categoriesSet.size === fallbackCategories.length) {
-      try {
-        const filePath = path.join(process.cwd(), 'data', 'homepageContent.json');
-        if (fs.existsSync(filePath)) {
-          const raw = fs.readFileSync(filePath, 'utf-8');
-          const parsed = JSON.parse(raw);
-          if (parsed.featured_products && Array.isArray(parsed.featured_products) && parsed.featured_products.length > 0) {
-            categoryCards = parsed.featured_products;
-            categoriesSet.clear();
-            parsed.featured_products.forEach((c: any) => {
-              if (c.name && c.name.trim()) categoriesSet.add(c.name.trim());
-            });
-          }
-        }
-      } catch {}
+    if (!homeError && homeData?.featured_products && Array.isArray(homeData.featured_products)) {
+      categoryCards = homeData.featured_products;
+      categoryCards.forEach((c: any) => {
+        if (c.name && c.name.trim()) categoriesSet.add(c.name.trim());
+      });
     }
 
-    // 3. Also grab any unique category from products table
-    try {
-      const { data: prodData } = await supabaseAdmin
-        .from('products')
-        .select('category');
-      if (prodData && Array.isArray(prodData)) {
-        prodData.forEach((p: any) => {
-          if (p.category && p.category.trim()) categoriesSet.add(p.category.trim());
-        });
-      }
-    } catch {}
+    // 2. Also fetch all distinct categories present in the products table
+    const { data: prodData, error: prodError } = await supabaseAdmin
+      .from('products')
+      .select('category');
+
+    if (!prodError && prodData && Array.isArray(prodData)) {
+      prodData.forEach((p: any) => {
+        if (p.category && p.category.trim()) categoriesSet.add(p.category.trim());
+      });
+    }
+
+    // Fallback default list if database categories are empty
+    if (categoriesSet.size === 0) {
+      ['Dates', 'Dates Laddu', 'Stuffed Dates', 'Date Bites', 'Gift Packs'].forEach((c) =>
+        categoriesSet.add(c)
+      );
+    }
 
     const categoriesArray = Array.from(categoriesSet);
 
     return NextResponse.json({
       success: true,
+      source: 'supabase',
       data: categoriesArray,
       categoriesWithMeta: categoryCards,
     });
   } catch (err: any) {
-    return NextResponse.json({
-      success: true,
-      data: fallbackCategories,
-      categoriesWithMeta: defaultHomepageContent.featured_products,
-    });
+    return NextResponse.json(
+      { success: false, error: err?.message || 'Failed to fetch categories' },
+      { status: 500 }
+    );
   }
 }
+

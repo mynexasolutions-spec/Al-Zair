@@ -1,29 +1,35 @@
-import fs from 'fs';
-import path from 'path';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { allProducts, Product } from '@/data/catalog';
+import { Product } from '@/data/catalog';
 
 export const dynamic = 'force-dynamic';
 
-const PRODUCTS_FILE = path.join(process.cwd(), 'data', 'products.json');
-
-function getLocalProducts(): Product[] | null {
-  try {
-    if (fs.existsSync(PRODUCTS_FILE)) {
-      const raw = fs.readFileSync(PRODUCTS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
-  return null;
-}
-
-function saveLocalProducts(products: Product[]) {
-  try {
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2), 'utf-8');
-  } catch {}
+function mapDbProduct(item: any): Product {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    productType: item.product_type || item.productType || 'Premium Dates',
+    price: Number(item.price),
+    originalPrice: item.original_price ? Number(item.original_price) : undefined,
+    discount: item.discount || undefined,
+    rating: Number(item.rating) || 4.8,
+    reviews: Number(item.reviews) || 50,
+    image: item.image,
+    galleryImages: item.gallery_images || item.galleryImages || [item.image],
+    inStock: Boolean(item.in_stock !== false),
+    weight: item.weight || '500g',
+    isNew: Boolean(item.is_new),
+    salesCount: Number(item.sales_count) || 0,
+    shortDescription: item.short_description || '',
+    description: item.description || '',
+    ingredients: item.ingredients || '',
+    storage: item.storage || '',
+    shipping: item.shipping || '',
+    couponCode: item.coupon_code || item.couponCode || '',
+    couponDiscount: item.coupon_discount || item.couponDiscount || '',
+  };
 }
 
 export async function GET(req: Request) {
@@ -31,7 +37,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const productId = searchParams.get('id');
 
-    // 1. Try Supabase
     let query = supabaseAdmin.from('products').select('*');
     if (productId) {
       query = query.eq('id', productId);
@@ -41,67 +46,24 @@ export async function GET(req: Request) {
 
     const { data, error } = await query;
 
-    if (!error && data && data.length > 0) {
-      const formatted: Product[] = data.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        productType: item.product_type || item.productType || 'Premium Dates',
-        price: Number(item.price),
-        originalPrice: item.original_price ? Number(item.original_price) : undefined,
-        discount: item.discount,
-        rating: Number(item.rating) || 4.8,
-        reviews: Number(item.reviews) || 50,
-        image: item.image,
-        galleryImages: item.gallery_images || item.galleryImages || [],
-        inStock: Boolean(item.in_stock !== false),
-        weight: item.weight || '500g',
-        isNew: Boolean(item.is_new),
-        salesCount: Number(item.sales_count) || 0,
-        shortDescription: item.short_description || '',
-        description: item.description || '',
-        ingredients: item.ingredients || '',
-        storage: item.storage || '',
-        shipping: item.shipping || '',
-        couponCode: item.coupon_code || item.couponCode || '',
-        couponDiscount: item.coupon_discount || item.couponDiscount || '',
-      }));
-
-
-      if (productId) {
-        return NextResponse.json({ success: true, source: 'supabase', data: formatted[0] });
-      }
-
-      saveLocalProducts(formatted);
-      return NextResponse.json({ success: true, source: 'supabase', data: formatted });
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // 2. Try Local File
-    const local = getLocalProducts();
-    if (local) {
-      if (productId) {
-        const found = local.find((p) => p.id === productId || p.id.toLowerCase() === productId.toLowerCase());
-        if (found) return NextResponse.json({ success: true, source: 'local_file', data: found });
-      } else {
-        return NextResponse.json({ success: true, source: 'local_file', data: local });
-      }
-    }
-
-    // 3. Fallback to catalog
     if (productId) {
-      const found = allProducts.find((p) => p.id === productId || p.id.toLowerCase() === productId.toLowerCase());
-      if (found) return NextResponse.json({ success: true, source: 'default_catalog', data: found });
-      return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
+      if (!data || data.length === 0) {
+        return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, source: 'supabase', data: mapDbProduct(data[0]) });
     }
 
-    return NextResponse.json({ success: true, source: 'default_catalog', data: allProducts });
+    const formatted: Product[] = (data || []).map(mapDbProduct);
+    return NextResponse.json({ success: true, source: 'supabase', data: formatted });
   } catch (err: any) {
-    const local = getLocalProducts();
-    return NextResponse.json({
-      success: true,
-      source: 'fallback',
-      data: local || allProducts,
-    });
+    return NextResponse.json(
+      { success: false, error: err?.message || 'Failed to fetch products' },
+      { status: 500 }
+    );
   }
 }
 
@@ -117,85 +79,67 @@ export async function POST(req: Request) {
         .replace(/(^-|-$)/g, '') ||
       Date.now().toString();
 
-    // Clean gallery images array
     const galleryImages: string[] = Array.isArray(body.galleryImages)
       ? body.galleryImages.filter((img: string) => img && typeof img === 'string' && img.trim())
       : [];
 
-    const product: Product = {
+    const mainImage = body.image || galleryImages[0] || '';
+
+    const dbRecord: any = {
       id,
       name: body.name,
       category: body.category || 'Dates',
-      productType: body.productType || 'Premium Dates',
+      product_type: body.productType || 'Premium Dates',
       price: Number(body.price),
-      originalPrice: body.originalPrice ? Number(body.originalPrice) : undefined,
-      discount: body.discount || undefined,
+      original_price: body.originalPrice ? Number(body.originalPrice) : null,
+      discount: body.discount || null,
       rating: Number(body.rating) || 4.8,
       reviews: Number(body.reviews) || 50,
-      image: body.image || (galleryImages[0] || '/images/dates.jpg'),
-      galleryImages: galleryImages.length > 0 ? galleryImages : [body.image || '/images/dates.jpg'],
-      inStock: Boolean(body.inStock !== false),
+      image: mainImage,
+      gallery_images: galleryImages.length > 0 ? galleryImages : (mainImage ? [mainImage] : []),
+      in_stock: Boolean(body.inStock !== false),
       weight: body.weight || '500g',
-      isNew: Boolean(body.isNew),
-      salesCount: Number(body.salesCount) || 0,
-      shortDescription: body.shortDescription || '',
+      is_new: Boolean(body.isNew),
+      sales_count: Number(body.salesCount) || 0,
+      short_description: body.shortDescription || '',
       description: body.description || '',
       ingredients: body.ingredients || '',
       storage: body.storage || '',
       shipping: body.shipping || '',
-      couponCode: body.couponCode || '',
-      couponDiscount: body.couponDiscount || '',
+      coupon_code: body.couponCode || null,
+      coupon_discount: body.couponDiscount || null,
+      updated_at: new Date().toISOString(),
     };
 
-    // 1. Save to local products store
-    const currentList = getLocalProducts() || allProducts;
-    const updatedList = [product, ...currentList.filter((p) => p.id !== id)];
-    saveLocalProducts(updatedList);
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .upsert(dbRecord, { onConflict: 'id' })
+      .select()
+      .single();
 
-    // 2. Save to Supabase (with graceful column fallback)
-    let supabaseSaved = false;
-    try {
-      const dbRecord: any = {
-        id: product.id,
-        name: product.name,
-        category: product.category,
-        product_type: product.productType,
-        price: product.price,
-        original_price: product.originalPrice || null,
-        discount: product.discount || null,
-        rating: product.rating,
-        reviews: product.reviews,
-        image: product.image,
-        gallery_images: product.galleryImages,
-        in_stock: product.inStock,
-        weight: product.weight,
-        short_description: product.shortDescription,
-        description: product.description,
-        ingredients: product.ingredients,
-        storage: product.storage,
-        shipping: product.shipping,
-        coupon_code: product.couponCode || null,
-        coupon_discount: product.couponDiscount || null,
-        updated_at: new Date().toISOString(),
-      };
+    if (error) {
+      // Retry without extra optional columns if schema differs
+      const fallbackRecord = { ...dbRecord };
+      delete fallbackRecord.gallery_images;
+      delete fallbackRecord.coupon_code;
+      delete fallbackRecord.coupon_discount;
 
-      const { error } = await supabaseAdmin
+      const { data: retryData, error: retryErr } = await supabaseAdmin
         .from('products')
-        .upsert(dbRecord, { onConflict: 'id' });
+        .upsert(fallbackRecord, { onConflict: 'id' })
+        .select()
+        .single();
 
-      if (!error) {
-        supabaseSaved = true;
-      } else {
-        // Retry without extra columns if not yet in schema
-        delete dbRecord.gallery_images;
-        delete dbRecord.coupon_code;
-        delete dbRecord.coupon_discount;
-        const { error: retryErr } = await supabaseAdmin
-          .from('products')
-          .upsert(dbRecord, { onConflict: 'id' });
-        if (!retryErr) supabaseSaved = true;
+      if (retryErr) {
+        return NextResponse.json({ success: false, error: retryErr.message }, { status: 500 });
       }
-    } catch {}
+
+      return NextResponse.json({
+        success: true,
+        message: 'Product created successfully',
+        data: mapDbProduct(retryData || fallbackRecord),
+      });
+    }
 
     try {
       revalidatePath('/products');
@@ -206,8 +150,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'Product created successfully',
-      supabaseSaved,
-      data: product,
+      data: mapDbProduct(data || dbRecord),
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -226,61 +169,61 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, error: 'Product ID required' }, { status: 400 });
     }
 
-    const currentList = getLocalProducts() || allProducts;
-    const existing = currentList.find((p) => p.id === id);
-
     const galleryImages: string[] = Array.isArray(body.galleryImages)
       ? body.galleryImages.filter((img: string) => img && typeof img === 'string' && img.trim())
-      : (existing?.galleryImages || []);
+      : [];
 
-    const updatedProduct: Product = {
-      ...(existing || { id, name: body.name, price: Number(body.price), image: '/images/dates.jpg', inStock: true, rating: 4.8, reviews: 50 }),
-      ...body,
+    const dbRecord: any = {
+      name: body.name,
+      category: body.category,
+      product_type: body.productType,
       price: Number(body.price),
-      originalPrice: body.originalPrice ? Number(body.originalPrice) : undefined,
-      galleryImages: galleryImages.length > 0 ? galleryImages : [body.image || existing?.image || '/images/dates.jpg'],
-      couponCode: body.couponCode !== undefined ? body.couponCode : existing?.couponCode,
-      couponDiscount: body.couponDiscount !== undefined ? body.couponDiscount : existing?.couponDiscount,
+      original_price: body.originalPrice ? Number(body.originalPrice) : null,
+      discount: body.discount || null,
+      image: body.image,
+      gallery_images: galleryImages.length > 0
+        ? Array.from(new Set([body.image || '', ...galleryImages].filter(Boolean)))
+        : (body.image ? [body.image] : undefined),
+      in_stock: body.inStock !== undefined ? Boolean(body.inStock) : undefined,
+      weight: body.weight,
+      short_description: body.shortDescription,
+      description: body.description,
+      ingredients: body.ingredients,
+      storage: body.storage,
+      shipping: body.shipping,
+      coupon_code: body.couponCode || null,
+      coupon_discount: body.couponDiscount || null,
+      updated_at: new Date().toISOString(),
     };
 
-    const updatedList = currentList.map((p) => (p.id === id ? updatedProduct : p));
-    saveLocalProducts(updatedList);
+    // Remove undefined values
+    Object.keys(dbRecord).forEach((key) => dbRecord[key] === undefined && delete dbRecord[key]);
 
-    try {
-      const dbRecord: any = {
-        name: updatedProduct.name,
-        category: updatedProduct.category,
-        product_type: updatedProduct.productType,
-        price: updatedProduct.price,
-        original_price: updatedProduct.originalPrice || null,
-        discount: updatedProduct.discount || null,
-        image: updatedProduct.image,
-        gallery_images: updatedProduct.galleryImages,
-        in_stock: updatedProduct.inStock,
-        weight: updatedProduct.weight,
-        short_description: updatedProduct.shortDescription,
-        description: updatedProduct.description,
-        ingredients: updatedProduct.ingredients,
-        storage: updatedProduct.storage,
-        shipping: updatedProduct.shipping,
-        coupon_code: updatedProduct.couponCode || null,
-        coupon_discount: updatedProduct.couponDiscount || null,
-        updated_at: new Date().toISOString(),
-      };
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .update(dbRecord)
+      .eq('id', id)
+      .select()
+      .single();
 
-      const { error } = await supabaseAdmin
+    if (error) {
+      delete dbRecord.gallery_images;
+      delete dbRecord.coupon_code;
+      delete dbRecord.coupon_discount;
+
+      const { data: retryData, error: retryErr } = await supabaseAdmin
         .from('products')
         .update(dbRecord)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
-      if (error) {
-        delete dbRecord.gallery_images;
-        delete dbRecord.coupon_code;
-        delete dbRecord.coupon_discount;
-        await supabaseAdmin.from('products').update(dbRecord).eq('id', id);
+      if (retryErr) {
+        return NextResponse.json({ success: false, error: retryErr.message }, { status: 500 });
       }
-    } catch {}
 
+      return NextResponse.json({ success: true, data: mapDbProduct(retryData || { id, ...dbRecord }) });
+    }
 
     try {
       revalidatePath('/products');
@@ -288,7 +231,7 @@ export async function PUT(req: Request) {
       revalidatePath('/');
     } catch {}
 
-    return NextResponse.json({ success: true, data: updatedProduct });
+    return NextResponse.json({ success: true, data: mapDbProduct(data || { id, ...dbRecord }) });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err?.message || 'Failed to update product' },
@@ -306,13 +249,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, error: 'Product ID required' }, { status: 400 });
     }
 
-    const currentList = getLocalProducts() || allProducts;
-    const updatedList = currentList.filter((p) => p.id !== id);
-    saveLocalProducts(updatedList);
+    const { error } = await supabaseAdmin.from('products').delete().eq('id', id);
 
-    try {
-      await supabaseAdmin.from('products').delete().eq('id', id);
-    } catch {}
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
 
     try {
       revalidatePath('/products');
@@ -320,7 +261,7 @@ export async function DELETE(req: Request) {
       revalidatePath('/');
     } catch {}
 
-    return NextResponse.json({ success: true, message: `Product ${id} deleted` });
+    return NextResponse.json({ success: true, message: `Product ${id} deleted successfully` });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err?.message || 'Failed to delete product' },

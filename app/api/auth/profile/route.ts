@@ -1,29 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
-
-const CUSTOMERS_FILE = path.join(process.cwd(), 'data', 'customers.json');
-
-function getLocalCustomers(): any[] {
-  try {
-    if (fs.existsSync(CUSTOMERS_FILE)) {
-      const raw = fs.readFileSync(CUSTOMERS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {}
-  return [];
-}
-
-function saveLocalCustomers(list: any[]) {
-  try {
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(list, null, 2), 'utf-8');
-  } catch {}
-}
 
 export async function PUT(req: Request) {
   try {
@@ -48,34 +27,26 @@ export async function PUT(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Update in local JSON
-    const local = getLocalCustomers();
-    const updatedList = local.map((c) =>
-      c.id === currentUser.id || (c.email || '').toLowerCase() === currentUser.email.toLowerCase()
-        ? { ...c, ...updatedUser }
-        : c
-    );
-    saveLocalCustomers(updatedList);
+    const { error } = await supabaseAdmin
+      .from('customers')
+      .update({
+        full_name: updatedUser.fullName,
+        phone: updatedUser.phone,
+        address: updatedUser.address,
+        city: updatedUser.city,
+        postal_code: updatedUser.postalCode,
+        state: updatedUser.state,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', currentUser.id);
 
-    // 2. Update in Supabase
-    try {
-      await supabaseAdmin
-        .from('customers')
-        .update({
-          full_name: updatedUser.fullName,
-          phone: updatedUser.phone,
-          address: updatedUser.address,
-          city: updatedUser.city,
-          postal_code: updatedUser.postalCode,
-          state: updatedUser.state,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', currentUser.id);
-    } catch {}
+    if (error) {
+      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    }
 
     const response = NextResponse.json({
       success: true,
-      message: 'Profile updated successfully',
+      message: 'Profile updated successfully in database',
       user: updatedUser,
     });
 

@@ -46,11 +46,11 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         }
       });
     }
-    return list.length > 0 ? list : ['/images/dates.jpg'];
+    return list;
   }, [product.galleryImages, product.image]);
 
   const [activeImage, setActiveImage] = useState<string>(
-    product.image || (product.galleryImages && product.galleryImages[0]) || '/images/dates.jpg'
+    product.image || (product.galleryImages && product.galleryImages[0]) || ''
   );
 
   useEffect(() => {
@@ -58,6 +58,8 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
       setActiveImage(gallery[0]);
     } else if (product.image) {
       setActiveImage(product.image);
+    } else {
+      setActiveImage('');
     }
   }, [gallery, product.image]);
   const [quantity, setQuantity] = useState(1);

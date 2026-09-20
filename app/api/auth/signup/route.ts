@@ -1,28 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
-
-const CUSTOMERS_FILE = path.join(process.cwd(), 'data', 'customers.json');
-
-function getLocalCustomers(): any[] {
-  try {
-    if (fs.existsSync(CUSTOMERS_FILE)) {
-      const raw = fs.readFileSync(CUSTOMERS_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch {}
-  return [];
-}
-
-function saveLocalCustomers(list: any[]) {
-  try {
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(list, null, 2), 'utf-8');
-  } catch {}
-}
 
 export async function POST(req: Request) {
   try {
@@ -47,11 +26,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check existing customer in local or Supabase
-    const localCustomers = getLocalCustomers();
-    const existingLocal = localCustomers.find((c) => (c.email || '').toLowerCase() === cleanEmail);
+    // Check existing customer in Supabase
+    const { data: existing } = await supabaseAdmin
+      .from('customers')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle();
 
-    if (existingLocal) {
+    if (existing) {
       return NextResponse.json(
         { success: false, message: 'An account with this email already exists. Please log in.' },
         { status: 409 }
@@ -62,36 +44,25 @@ export async function POST(req: Request) {
     const newCustomer = {
       id: customerId,
       full_name: cleanName,
-      fullName: cleanName,
       email: cleanEmail,
-      password: password, // For customer portal
+      password: password,
       phone: cleanPhone,
       address: '',
       city: '',
       postal_code: '',
-      postalCode: '',
       state: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Save to local JSON
-    saveLocalCustomers([newCustomer, ...localCustomers]);
+    const { error: insertErr } = await supabaseAdmin.from('customers').insert([newCustomer]);
 
-    // 2. Save to Supabase customers table (graceful if table exists)
-    try {
-      await supabaseAdmin.from('customers').insert([
-        {
-          id: customerId,
-          full_name: cleanName,
-          email: cleanEmail,
-          password: password,
-          phone: cleanPhone,
-          created_at: newCustomer.created_at,
-          updated_at: newCustomer.updated_at,
-        },
-      ]);
-    } catch {}
+    if (insertErr) {
+      return NextResponse.json(
+        { success: false, message: insertErr.message || 'Failed to create account in database' },
+        { status: 500 }
+      );
+    }
 
     const sessionUser = {
       id: customerId,

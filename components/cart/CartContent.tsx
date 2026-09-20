@@ -29,7 +29,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { allProducts, Product } from '@/data/catalog';
+import { Product } from '@/data/catalog';
 
 export function CartContent() {
   const { cart, removeFromCart, updateQuantity, clearCart, subtotal } = useCart();
@@ -42,7 +42,7 @@ export function CartContent() {
   const [promoError, setPromoError] = useState('');
   const [promoSuccess, setPromoSuccess] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>(allProducts);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
 
   // Checkout State
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -134,9 +134,9 @@ export function CartContent() {
       }
 
       // 3. Check Product-specific coupon codes added by Admin or in Catalog
-      const pool = productsList && productsList.length > 0 ? productsList : allProducts;
+      const pool: Product[] = productsList || [];
       const matchingProduct = pool.find(
-        (p) =>
+        (p: Product) =>
           (p.couponCode && p.couponCode.trim().toUpperCase() === cleanCode) ||
           (p.couponDiscount && p.couponDiscount.trim().toUpperCase() === cleanCode)
       );
@@ -192,7 +192,7 @@ export function CartContent() {
           ? json
           : Array.isArray(json?.data)
           ? json.data
-          : allProducts;
+          : [];
         setCatalogProducts(list);
         if (initialCoupon) {
           validateAndApplyCode(initialCoupon, list);
@@ -200,7 +200,7 @@ export function CartContent() {
       })
       .catch(() => {
         if (initialCoupon) {
-          validateAndApplyCode(initialCoupon, allProducts);
+          validateAndApplyCode(initialCoupon, []);
         }
       });
   }, [initialCoupon, validateAndApplyCode]);
